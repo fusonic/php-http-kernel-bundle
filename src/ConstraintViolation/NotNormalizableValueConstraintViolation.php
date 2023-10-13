@@ -26,20 +26,33 @@ class NotNormalizableValueConstraintViolation extends ConstraintViolation
     {
         $message = $exception->getMessage();
         $matches = [];
-        $propertyPath = null;
+        $propertyPath = $exception->getPath();
         $invalidValue = null;
 
-        if (str_starts_with($message, 'The type of the')) {
-            $pattern = '/The type of the "(\w+)" attribute for class "(.+)" must be one of "(.+)" \("(.+)" given\)\./';
-            preg_match($pattern, $message, $matches);
-
+        if (1 === preg_match(
+            '/The type of the "(\w+)" attribute for class "(.+)" must be one of "(.+)" \("(.+)" given\)\./',
+            $message,
+            $matches
+        )) {
             if (\count($matches) < 5) {
                 throw $exception;
             }
 
             $invalidValue = $matches[4];
             $expectedType = $matches[3];
-            $propertyPath = $matches[1];
+            $propertyPath ??= $matches[1];
+        } elseif (1 === preg_match(
+            '/The type of the "(\w+)" attribute for class "(.+)" must be (.+) \("(.+)" given\)\./',
+            $message,
+            $matches
+        )) {
+            if (\count($matches) < 5) {
+                throw $exception;
+            }
+
+            $invalidValue = $matches[4];
+            $expectedType = $matches[3];
+            $propertyPath ??= $matches[1];
         } elseif (str_starts_with($message, 'Failed to denormalize attribute')) {
             $pattern = '/Failed to denormalize attribute "(\w+)" value for class "(.+)": Expected argument of type "(.+)", "(.+)" given/';
             preg_match($pattern, $message, $matches);
@@ -50,7 +63,7 @@ class NotNormalizableValueConstraintViolation extends ConstraintViolation
 
             $invalidValue = $matches[4];
             $expectedType = $matches[3];
-            $propertyPath = $matches[1];
+            $propertyPath ??= $matches[1];
         } elseif (str_starts_with($message, 'Data expected to be')) {
             $pattern = '/Data expected to be "(.+)", (.+) given\./';
 
@@ -65,12 +78,12 @@ class NotNormalizableValueConstraintViolation extends ConstraintViolation
                 throw $exception;
             }
 
-            $propertyPath = $this->determinePropertyPath($data, $className);
+            $propertyPath ??= $this->determinePropertyPath($data, $className);
         } else {
             throw $exception;
         }
 
-        $propertyPath = null === $propertyPath ? $exception->getPath() ?? '' : $propertyPath;
+        $propertyPath = null === $propertyPath ? '' : $propertyPath;
         $invalidValue = null === $invalidValue ? $exception->getCurrentType() ?? null : $invalidValue;
         $constraint = new Type($propertyPath);
 
